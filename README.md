@@ -4,6 +4,8 @@ This is an attempt for implementation of the paper "Patch-Based Optimization for
 
 ## Before use
 
+0. Create solutions by using visual studio 2019, dependency libs are created by using vcpkg.
+
 1. Make sure you have installed **Boost**, **Eigen3**, **VTK 6.3**, **PCL 1.9**, **OpenCV 4**, and **ImageMagick**.
    (I'm using Ubuntu 16.04, but the project works if you successfully install these things on Windows.)
 
