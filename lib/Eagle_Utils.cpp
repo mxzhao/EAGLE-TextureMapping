@@ -1,4 +1,5 @@
 #include "Eagle_Utils.h"
+#include <filesystem>
 
 // 获取文件所在的路径
 //std::string fullpath = "/home/wsy/EAGLE/test.txt"
@@ -41,7 +42,9 @@ bool EAGLE::checkPath(std::string path)
   if( isFileExist(path) ){
     return true;
   }
-  system( ("mkdir " + path).c_str() );
+  //system( ("mkdir " + path).c_str() );
+  std::filesystem::create_directory(path);
+
   return true;
 }
 

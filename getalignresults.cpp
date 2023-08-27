@@ -29,6 +29,10 @@ getAlignResults::getAlignResults(Settings &_settings)
 {
     settings = _settings;
     cv::glob(settings.keyFramesPath + "/" + settings.kfRGBMatch, sourcesOrigin, false);
+    for (int i = 0; i < sourcesOrigin.size(); i++)
+    {
+        sourcesOrigin[i].replace(sourcesOrigin[i].find_first_of("\\"), 1, "/");
+    }
     // range of all frames
     kfStart = 0; kfTotal = sourcesOrigin.size();
     // range of valid frames
@@ -87,28 +91,29 @@ getAlignResults::getAlignResults(Settings &_settings)
 
     LOG("[ Init Success. " + std::to_string(kfIndexs.size()) + " / " + std::to_string(kfTotal) + " Images " + "]");
 
-    time_t start, end;
-    struct timeval tv;
-    char time_start_str[32], time_end_str[32];
+    //time_t start, end;
+    //struct timeval tv;
+    //char time_start_str[32], time_end_str[32];
 
-    gettimeofday(&tv, nullptr);
-    auto time_tmp = localtime(&tv.tv_sec);
-    strftime(time_start_str, 32, "%Y.%m.%d %H:%M:%S", time_tmp);
-    time(&start);
+    //gettimeofday(&tv, nullptr);
+    //auto time_tmp = localtime(&tv.tv_sec);
+    //strftime(time_start_str, 32, "%Y.%m.%d %H:%M:%S", time_tmp);
+    //time(&start);
+    //zhaomx remove time diff
 
      if (GENERATE_OBJ_ONLY)
         doOBJGenerationOnly();
     else
         doIterations();
 
-    gettimeofday(&tv, nullptr);
-    time_tmp = localtime(&tv.tv_sec);
-    strftime(time_end_str, 32, "%Y.%m.%d %H:%M:%S", time_tmp);
-    time(&end);
+    //gettimeofday(&tv, nullptr);
+    //time_tmp = localtime(&tv.tv_sec);
+    //strftime(time_end_str, 32, "%Y.%m.%d %H:%M:%S", time_tmp);
+    //time(&end);
 
-    double all_seconds = difftime(end, start);
-    LOG("[ Running from " + std::string(time_start_str) + " to " + std::string(time_end_str) + " ]");
-    LOG("[ Finish in " + std::to_string(all_seconds) + " s ]");
+    //double all_seconds = difftime(end, start);
+    //LOG("[ Running from " + std::string(time_start_str) + " to " + std::string(time_end_str) + " ]");
+    //LOG("[ Finish in " + std::to_string(all_seconds) + " s ]");
 }
 getAlignResults::~getAlignResults()
 {
@@ -681,6 +686,27 @@ void getAlignResults::showRemapping()
         cv::imwrite(weightsPath + "/remap_"+std::to_string(img_i)+".png", mat_out);
     }
 }
+void convert_scale(std::string inf, std::string ssize, std::string outf)
+{
+    auto p0 = ssize.find("x");
+    int nw = atoi(ssize.substr(0, p0).c_str());
+    int nh = atoi(ssize.substr(p0+1, ssize.size() - p0 - 1).c_str());
+
+    cv::Mat imgin = cv::imread(inf, cv::IMREAD_UNCHANGED);
+    cv::resize(imgin, imgin, cv::Size(nw, nh));
+    cv::imwrite(outf, imgin);
+
+}
+std::string subreplace(std::string resource_str, std::string sub_str, std::string new_str)
+{
+    std::string dst_str = resource_str;
+	std::string::size_type pos = 0;
+	while ((pos = dst_str.find(sub_str)) != std::string::npos)   //替换所有指定子串
+	{
+		dst_str.replace(pos, sub_str.length(), new_str);
+	}
+	return dst_str;
+}
 
 /*----------------------------------------------
  *  Do Iterations
@@ -718,8 +744,8 @@ void getAlignResults::doIterations()
         for( size_t i : kfIndexs ) {
             std::string filename = EAGLE::getFilename(sourcesOrigin[i]);
             sourcesFiles[i] = sourcesPath + "/" + filename;
-            system( ("convert " + sourcesOrigin[i] + " -resize " + newResolution + "! " + sourcesFiles[i]).c_str() );
-
+            //system( ("convert " + sourcesOrigin[i] + " -resize " + newResolution + "! " + sourcesFiles[i]).c_str() );
+            convert_scale(sourcesOrigin[i],newResolution, sourcesFiles[i]);
             // get the mask from the depth
             cv::Mat depth_show = cv::imread(weightsPath + "/weight_"+std::to_string(i)+".png");
             cv::Mat depth_show_gray;
@@ -742,15 +768,18 @@ void getAlignResults::doIterations()
             for( size_t i : kfIndexs ) {
                 std::string filename = EAGLE::getFilename(sourcesFiles[i]);
                 targetsFiles[i] = targetsPath + "/" + filename;
-                system( ("cp " + sourcesFiles[i] + " " + targetsFiles[i]).c_str() );
+                system(subreplace("copy " + sourcesFiles[i] + " " + targetsFiles[i],"/","\\").c_str());
                 texturesFiles[i] = texturesPath + "/" + filename;
-                system( ("cp " + sourcesFiles[i] + " " + texturesFiles[i]).c_str() );
+                system(subreplace("copy " + sourcesFiles[i] + " " + texturesFiles[i], "/", "\\").c_str() );
             }
             init_T_M = false;
         }else{
             for( size_t i : kfIndexs ){ // [REQUIRE] ImageMagick
-                system( ("convert " + targetsFiles[i] + " -resize " + newResolution + "! " + targetsFiles[i]).c_str() );
-                system( ("convert " + texturesFiles[i] + " -resize " + newResolution + "! " + texturesFiles[i]).c_str() );
+                //system( ("convert " + targetsFiles[i] + " -resize " + newResolution + "! " + targetsFiles[i]).c_str() );
+                //system( ("convert " + texturesFiles[i] + " -resize " + newResolution + "! " + texturesFiles[i]).c_str() );
+                convert_scale(targetsFiles[i] , newResolution , targetsFiles[i]);
+                convert_scale(texturesFiles[i] , newResolution , texturesFiles[i]);
+
             }
         }
         targetsImgs.clear(); texturesImgs.clear();
@@ -786,8 +815,12 @@ void getAlignResults::doIterations()
         if ( OUTPUT_ALL_SCALE_M )
             for( size_t i : kfIndexs ){
                 // [REQUIRE] ImageMagick
-                system( ("convert " + targetsFiles[i] + " -resize " + originResolution + "! " + resultsPath+"/"+getImgFilename(i, "T_", "_"+std::to_string(scale+1)+"."+settings.rgbNameExt)).c_str() );
-                system( ("convert " + texturesFiles[i] + " -resize " + originResolution + "! " + resultsPath+"/"+getImgFilename(i, "M_", "_"+std::to_string(scale+1)+"."+settings.rgbNameExt)).c_str() );
+                //system( ("convert " + targetsFiles[i] + " -resize " + originResolution + "! " + resultsPath+"/"+getImgFilename(i, "T_", "_"+std::to_string(scale+1)+"."+settings.rgbNameExt)).c_str() );
+                //system( ("convert " + texturesFiles[i] + " -resize " + originResolution + "! " + resultsPath+"/"+getImgFilename(i, "M_", "_"+std::to_string(scale+1)+"."+settings.rgbNameExt)).c_str() );
+
+                convert_scale(targetsFiles[i] , originResolution , resultsPath + "/" + getImgFilename(i, "T_", "_" + std::to_string(scale + 1) + "." + settings.rgbNameExt));
+				convert_scale(texturesFiles[i] , originResolution , resultsPath + "/" + getImgFilename(i, "M_", "_" + std::to_string(scale + 1) + "." + settings.rgbNameExt));
+
             }
         LOG( "[ Results at " + newResolution + " Saving Success ]" );
     }
@@ -795,14 +828,17 @@ void getAlignResults::doIterations()
         scale = 9;
         for( size_t i : kfIndexs ){
             // [REQUIRE] ImageMagick
-            system( ("convert " + targetsFiles[i] + " -resize " + originResolution + "! " + resultsPath+"/"+getImgFilename(i, "T_", "_"+std::to_string(scale+1)+"."+settings.rgbNameExt)).c_str() );
-            system( ("convert " + texturesFiles[i] + " -resize " + originResolution + "! " + resultsPath+"/"+getImgFilename(i, "M_", "_"+std::to_string(scale+1)+"."+settings.rgbNameExt)).c_str() );
+            //system( ("convert " + targetsFiles[i] + " -resize " + originResolution + "! " + resultsPath+"/"+getImgFilename(i, "T_", "_"+std::to_string(scale+1)+"."+settings.rgbNameExt)).c_str() );
+            //system( ("convert " + texturesFiles[i] + " -resize " + originResolution + "! " + resultsPath+"/"+getImgFilename(i, "M_", "_"+std::to_string(scale+1)+"."+settings.rgbNameExt)).c_str() );
+			convert_scale(targetsFiles[i] , originResolution , resultsPath + "/" + getImgFilename(i, "T_", "_" + std::to_string(scale + 1) + "." + settings.rgbNameExt));
+			convert_scale(texturesFiles[i] , originResolution , resultsPath + "/" + getImgFilename(i, "M_", "_" + std::to_string(scale + 1) + "." + settings.rgbNameExt));
         }
     }
     for( size_t i : kfIndexs ) {
         std::string s_file = resultsPath+"/" +getImgFilename(i, "S_", "."+settings.rgbNameExt);
         generateTextureIWithS(i, s_file);
-        system( ("convert " + s_file + " -resize " + originResolution + "! " + s_file).c_str() );
+        //system( ("convert " + s_file + " -resize " + originResolution + "! " + s_file).c_str() );
+        convert_scale( s_file , originResolution , s_file);
     }
     generateTexturedOBJ(resultsPath, "S", "S_%03d");
     //generateTexturedOBJ(resultsPath, "T", "T_%03d_"+std::to_string(settings.scaleTimes));
